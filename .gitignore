@@ -1,0 +1,7 @@
+*.yml
+*.sh
+sdkconfig
+sdkconfig.old
+dependencies.lock
+build
+managed_components
