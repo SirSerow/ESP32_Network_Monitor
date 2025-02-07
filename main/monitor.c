@@ -33,6 +33,7 @@ typedef struct {
 } network_params_t;
 
 network_params_t net_params = {0};
+static esp_ping_handle_t ping_session = NULL;
 
 // Function to measure WiFi RSSI
 void measure_rssi() {
@@ -101,7 +102,7 @@ static void ping_on_end(esp_ping_handle_t hdl, void *args) {
 void measure_latency() {
     ip_addr_t target_addr;
     struct addrinfo hint, *res = NULL;
-    
+
     memset(&hint, 0, sizeof(hint));
     memset(&target_addr, 0, sizeof(target_addr));
 
@@ -115,6 +116,14 @@ void measure_latency() {
     inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
     freeaddrinfo(res);
 
+    // Stop and delete old session if exists
+    if (ping_session) {
+        esp_ping_stop(ping_session);
+        esp_ping_delete_session(ping_session);
+        ping_session = NULL;
+        ESP_LOGI(TAG, "Old ping session stopped and deleted.");
+    }
+
     esp_ping_config_t ping_config = ESP_PING_DEFAULT_CONFIG();
     ping_config.target_addr = target_addr;
     ping_config.count = 4;
@@ -127,20 +136,21 @@ void measure_latency() {
         .cb_args = NULL
     };
 
-    esp_ping_handle_t ping;
-    esp_err_t err = esp_ping_new_session(&ping_config, &cbs, &ping);
+    esp_err_t err = esp_ping_new_session(&ping_config, &cbs, &ping_session);
     
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create ping session: %s", esp_err_to_name(err));
         return;
     }
 
-    err = esp_ping_start(ping);
+    err = esp_ping_start(ping_session);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start ping session: %s", esp_err_to_name(err));
-        return;
+        esp_ping_delete_session(ping_session);
+        ping_session = NULL;
     }
 }
+
 
 
 // Function to check if all parameters are collected
